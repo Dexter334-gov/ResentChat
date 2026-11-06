@@ -6,20 +6,13 @@
     <title>ResentChat - Real-Time Social Chat</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Firebase SDKs -->
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; }
-        .glass { background: rgba(17, 24, 39, 0.75); backdrop-filter: blur(12px); }
-    </style>
-</head>
-<body class="bg-gray-950 text-gray-100 h-screen flex flex-col overflow-hidden">
+    <!-- Firebase SDKs (v10+ Modular via CDN) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getDatabase, ref, set, onValue, push } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-    <!-- FIREBASE CONFIGURATION (PLUGGED IN WITH YOUR KEYS) -->
-    <script>
+        // Firebase Configuration
         const firebaseConfig = {
             apiKey: "AIzaSyB-hYfyMbHLoXqNPkyXsgJszQ457n3zyMk",
             authDomain: "resentchat.firebaseapp.com",
@@ -30,10 +23,42 @@
             appId: "1:632470019323:web:ec9821fedd13c2af51a45e",
             measurementId: "G-6BZEQTQSEK"
         };
-        firebase.initializeApp(firebaseConfig);
-        const auth = firebase.auth();
-        const db = firebase.database();
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getDatabase(app);
+
+        // Expose Firebase functions globally for UI handlers
+        window.auth = auth;
+        window.db = db;
+        window.GoogleAuthProvider = GoogleAuthProvider;
+        window.signInWithPopup = signInWithPopup;
+        window.signInWithEmailAndPassword = signInWithEmailAndPassword;
+        window.createUserWithEmailAndPassword = createUserWithEmailAndPassword;
+        window.signOut = signOut;
+        window.ref = ref;
+        window.set = set;
+        window.onValue = onValue;
+        window.push = push;
+
+        // Listen for Authentication state changes
+        onAuthStateChanged(auth, user => {
+            if (user) {
+                window.currentUser = user;
+                window.loadUserData(user.uid);
+            } else {
+                document.getElementById('auth-screen').classList.remove('hidden');
+                document.getElementById('app-screen').classList.add('hidden');
+            }
+        });
     </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .glass { background: rgba(17, 24, 39, 0.75); backdrop-filter: blur(12px); }
+    </style>
+</head>
+<body class="bg-gray-950 text-gray-100 h-screen flex flex-col overflow-hidden">
 
     <!-- AUTHENTICATION SCREEN -->
     <div id="auth-screen" class="fixed inset-0 z-50 flex items-center justify-center bg-gray-950 p-4">
@@ -128,24 +153,21 @@
                         <span class="text-xs uppercase font-bold text-gray-500 tracking-wider">Channels</span>
                         <button onclick="createCustomChannel()" class="text-gray-400 hover:text-indigo-400 text-sm">+</button>
                     </div>
-                    <div id="channels-list" class="space-y-1">
-                        <!-- Loaded dynamically -->
-                    </div>
+                    <div id="channels-list" class="space-y-1"></div>
                 </div>
 
                 <div>
                     <span class="text-xs uppercase font-bold text-gray-500 tracking-wider block mb-2">Friends & DMs</span>
                     <div class="flex space-x-2 mb-3">
-                        <input type="text" id="add-friend-input" placeholder="Username to add" class="flex-1 bg-gray-950 border border-gray-800 rounded px-2 py-1 text-xs focus:outline-none focus:border-indigo-500">
+                        <input type="text" id="add-friend-input" placeholder="Username" class="flex-1 bg-gray-950 border border-gray-800 rounded px-2 py-1 text-xs focus:outline-none focus:border-indigo-500">
                         <button onclick="sendFriendRequest()" class="bg-indigo-600 hover:bg-indigo-500 px-3 py-1 rounded text-xs font-semibold">Add</button>
                     </div>
                     <div id="friends-list" class="space-y-1">
-                        <!-- Loaded dynamically -->
+                        <div class="text-xs text-gray-500 px-3 py-1">No friends added yet</div>
                     </div>
                 </div>
             </div>
             
-            <!-- Admin Panel Trigger (Only if Admin) -->
             <div id="admin-panel-btn-container" class="p-4 border-t border-gray-800 hidden">
                 <button onclick="openAdminPanel()" class="w-full bg-red-600/20 border border-red-500/50 hover:bg-red-600/30 text-red-400 py-2 rounded-lg text-xs font-bold transition">Admin Control Panel</button>
             </div>
@@ -157,9 +179,7 @@
                 <h2 id="active-chat-title" class="font-bold text-lg">#general</h2>
             </div>
             
-            <div id="messages-container" class="flex-1 p-6 overflow-y-auto space-y-4">
-                <!-- Messages load here -->
-            </div>
+            <div id="messages-container" class="flex-1 p-6 overflow-y-auto space-y-4"></div>
 
             <form onsubmit="sendMessage(event)" class="p-4 border-t border-gray-800 bg-gray-900/50 flex space-x-2">
                 <input type="text" id="message-input" placeholder="Type your message..." class="flex-1 bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-indigo-500">
@@ -195,33 +215,27 @@
             else container.classList.add('hidden');
         }
 
-        // Firebase Auth State Listener
-        auth.onAuthStateChanged(user => {
-            if (user) {
-                currentUser = user;
-                db.ref('users/' + user.uid).once('value').then(snapshot => {
-                    userData = snapshot.val();
-                    if (!userData) {
-                        userData = {
-                            username: user.displayName || user.email.split('@')[0],
-                            avatar: user.photoURL || "https://api.dicebear.com/7.x/identicon/svg?seed=" + user.uid,
-                            role: "Member"
-                        };
-                        db.ref('users/' + user.uid).set(userData);
-                    }
-                    initAppUI();
-                });
-            } else {
-                document.getElementById('auth-screen').classList.remove('hidden');
-                document.getElementById('app-screen').classList.add('hidden');
-            }
-        });
+        window.loadUserData = function(uid) {
+            const userRef = window.ref(window.db, 'users/' + uid);
+            window.onValue(userRef, (snapshot) => {
+                userData = snapshot.val();
+                if (!userData) {
+                    userData = {
+                        username: window.currentUser.displayName || window.currentUser.email.split('@')[0],
+                        avatar: window.currentUser.photoURL || "https://api.dicebear.com/7.x/identicon/svg?seed=" + uid,
+                        role: "Member"
+                    };
+                    window.set(userRef, userData);
+                }
+                initAppUI();
+            }, { onlyOnce: true });
+        }
 
         function handleLogin(e) {
             e.preventDefault();
             const email = document.getElementById('login-email').value;
             const pass = document.getElementById('login-password').value;
-            auth.signInWithEmailAndPassword(email, pass).catch(err => alert(err.message));
+            window.signInWithEmailAndPassword(window.auth, email, pass).catch(err => alert(err.message));
         }
 
         function handleSignup(e) {
@@ -243,28 +257,28 @@
                 }
             }
 
-            auth.createUserWithEmailAndPassword(email, pass).then(cred => {
-                const newUserData = { username, avatar, role };
-                db.ref('users/' + cred.user.uid).set(newUserData);
+            window.createUserWithEmailAndPassword(window.auth, email, pass).then(cred => {
+                window.set(window.ref(window.db, 'users/' + cred.user.uid), { username, avatar, role });
             }).catch(err => alert(err.message));
         }
 
         function handleGoogleLogin() {
-            const provider = new firebase.auth.GoogleAuthProvider();
-            auth.signInWithPopup(provider).then(cred => {
-                db.ref('users/' + cred.user.uid).once('value').then(snapshot => {
+            const provider = new window.GoogleAuthProvider();
+            window.signInWithPopup(window.auth, provider).then(cred => {
+                const userRef = window.ref(window.db, 'users/' + cred.user.uid);
+                window.onValue(userRef, (snapshot) => {
                     if (!snapshot.exists()) {
-                        db.ref('users/' + cred.user.uid).set({
+                        window.set(userRef, {
                             username: cred.user.displayName,
                             avatar: cred.user.photoURL,
                             role: "Member"
                         });
                     }
-                });
+                }, { onlyOnce: true });
             }).catch(err => alert(err.message));
         }
 
-        function logout() { auth.signOut(); }
+        function logout() { window.signOut(window.auth); }
 
         function initAppUI() {
             document.getElementById('auth-screen').classList.add('hidden');
@@ -278,13 +292,12 @@
             }
 
             loadChannels();
-            loadFriends();
             loadMessages();
         }
 
         function loadChannels() {
             const list = document.getElementById('channels-list');
-            db.ref('channels').on('value', snapshot => {
+            window.onValue(window.ref(window.db, 'channels'), snapshot => {
                 list.innerHTML = '';
                 const channels = snapshot.val() || { general: { name: 'general' } };
                 Object.keys(channels).forEach(id => {
@@ -297,18 +310,13 @@
             const name = prompt("Enter new channel name:");
             if (name) {
                 const id = name.toLowerCase().replace(/\s+/g, '-');
-                db.ref('channels/' + id).set({ name });
+                window.set(window.ref(window.db, 'channels/' + id), { name });
             }
         }
 
         function sendFriendRequest() {
-            const targetName = document.getElementById('add-friend-input').value;
-            alert("Friend request sent to " + targetName);
+            alert("Friend request sent!");
             document.getElementById('add-friend-input').value = '';
-        }
-
-        function loadFriends() {
-            document.getElementById('friends-list').innerHTML = `<div class="text-xs text-gray-500 px-3 py-1">No friends added yet</div>`;
         }
 
         function switchChat(type, id) {
@@ -324,7 +332,7 @@
             if (!text) return;
 
             const path = activeChat.type === 'channel' ? `messages/channels/${activeChat.id}` : `messages/dms/${activeChat.id}`;
-            db.ref(path).push({
+            window.push(window.ref(window.db, path), {
                 senderId: currentUser.uid,
                 senderName: userData.username,
                 senderAvatar: userData.avatar,
@@ -338,7 +346,7 @@
             const container = document.getElementById('messages-container');
             const path = activeChat.type === 'channel' ? `messages/channels/${activeChat.id}` : `messages/dms/${activeChat.id}`;
             
-            db.ref(path).on('value', snapshot => {
+            window.onValue(window.ref(window.db, path), snapshot => {
                 container.innerHTML = '';
                 const msgs = snapshot.val() || {};
                 Object.values(msgs).forEach(msg => {

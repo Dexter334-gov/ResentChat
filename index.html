@@ -18,16 +18,17 @@
 </head>
 <body class="bg-gray-950 text-gray-100 h-screen flex flex-col overflow-hidden">
 
-    <!-- FIREBASE CONFIGURATION (REPLACE WITH YOUR KEYS) -->
+    <!-- FIREBASE CONFIGURATION (PLUGGED IN WITH YOUR KEYS) -->
     <script>
         const firebaseConfig = {
-            apiKey: "YOUR_API_KEY",
-            authDomain: "YOUR_AUTH_DOMAIN",
-            databaseURL: "YOUR_DATABASE_URL",
-            projectId: "YOUR_PROJECT_ID",
-            storageBucket: "YOUR_STORAGE_BUCKET",
-            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-            appId: "YOUR_APP_ID"
+            apiKey: "AIzaSyB-hYfyMbHLoXqNPkyXsgJszQ457n3zyMk",
+            authDomain: "resentchat.firebaseapp.com",
+            databaseURL: "https://resentchat-default-rtdb.firebaseio.com",
+            projectId: "resentchat",
+            storageBucket: "resentchat.firebasestorage.app",
+            messagingSenderId: "632470019323",
+            appId: "1:632470019323:web:ec9821fedd13c2af51a45e",
+            measurementId: "G-6BZEQTQSEK"
         };
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
@@ -201,7 +202,6 @@
                 db.ref('users/' + user.uid).once('value').then(snapshot => {
                     userData = snapshot.val();
                     if (!userData) {
-                        // Create user profile if missing
                         userData = {
                             username: user.displayName || user.email.split('@')[0],
                             avatar: user.photoURL || "https://api.dicebear.com/7.x/identicon/svg?seed=" + user.uid,
@@ -303,7 +303,6 @@
 
         function sendFriendRequest() {
             const targetName = document.getElementById('add-friend-input').value;
-            // Simple direct mapping demonstration
             alert("Friend request sent to " + targetName);
             document.getElementById('add-friend-input').value = '';
         }

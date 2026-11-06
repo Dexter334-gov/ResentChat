@@ -1,828 +1,368 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full bg-slate-950 text-slate-100 select-none">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ResentChat Pro</title>
+    <title>ResentChat - Real-Time Social Chat</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
-        body { font-family: 'Plus Jakarta Sans', sans-serif; }
-
-        ::-webkit-scrollbar { width: 5px; height: 5px; }
-        ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
-        ::-webkit-scrollbar-thumb { background: rgba(51, 65, 85, 0.8); border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(14, 165, 233, 0.8); }
-
-        .glass-panel {
-            background: rgba(15, 23, 42, 0.85);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-        }
-
-        .glass-card {
-            background: rgba(30, 41, 59, 0.5);
-            backdrop-filter: blur(8px);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-        }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .glass { background: rgba(17, 24, 39, 0.75); backdrop-filter: blur(12px); }
     </style>
 </head>
-<body class="h-full flex flex-col overflow-hidden bg-slate-950 text-slate-100">
+<body class="bg-gray-950 text-gray-100 h-screen flex flex-col overflow-hidden">
 
-    <!-- AUTH MODAL (Login / Signup) -->
-    <div id="authModal" class="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
-        <div class="glass-panel w-full max-w-md rounded-2xl p-6 sm:p-8 space-y-6 shadow-2xl relative overflow-hidden border border-slate-800">
-            <div class="flex items-center justify-center space-x-3">
-                <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-cyan-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
-                    <i data-lucide="zap" class="w-6 h-6 text-white"></i>
-                </div>
-                <h1 class="text-2xl font-extrabold text-white tracking-wide">Resent<span class="text-cyan-400">Chat</span></h1>
+    <!-- FIREBASE CONFIGURATION (REPLACE WITH YOUR KEYS) -->
+    <script>
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_AUTH_DOMAIN",
+            databaseURL: "YOUR_DATABASE_URL",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_STORAGE_BUCKET",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.database();
+    </script>
+
+    <!-- AUTHENTICATION SCREEN -->
+    <div id="auth-screen" class="fixed inset-0 z-50 flex items-center justify-center bg-gray-950 p-4">
+        <div class="glass p-8 rounded-2xl border border-gray-800 w-full max-w-md shadow-2xl">
+            <div class="text-center mb-6">
+                <h1 class="text-3xl font-bold bg-gradient-to-r from-indigo-400 to-purple-500 bg-clip-text text-transparent">ResentChat</h1>
+                <p class="text-gray-400 text-sm mt-1">Connect, chat, and customize your experience</p>
             </div>
 
-            <!-- Firebase Warning Alert -->
-            <div id="configWarning" class="hidden p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-left text-amber-300 text-xs space-y-1">
-                <div class="font-bold flex items-center space-x-1.5">
-                    <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-400"></i>
-                    <span>Firebase Config Required</span>
-                </div>
-                <p class="text-[11px] text-amber-300/80">Paste your Firebase credentials into <code>firebaseConfig</code> inside <code>index.html</code> to sync live data across users.</p>
+            <!-- Tabs -->
+            <div class="flex border-b border-gray-800 mb-6">
+                <button id="tab-login" onclick="switchAuthTab('login')" class="flex-1 pb-3 font-semibold text-indigo-400 border-b-2 border-indigo-500">Login</button>
+                <button id="tab-signup" onclick="switchAuthTab('signup')" class="flex-1 pb-3 font-semibold text-gray-400">Sign Up</button>
             </div>
 
-            <!-- Auth Tabs -->
-            <div class="flex border-b border-slate-800 text-sm font-semibold">
-                <button id="tabLogin" onclick="switchAuthTab('login')" class="flex-1 py-2 text-cyan-400 border-b-2 border-cyan-400 transition">Log In</button>
-                <button id="tabSignup" onclick="switchAuthTab('signup')" class="flex-1 py-2 text-slate-400 hover:text-slate-200 border-b-2 border-transparent transition">Sign Up</button>
-            </div>
-
-            <!-- LOGIN FORM -->
-            <form id="loginForm" onsubmit="handleEmailLogin(event)" class="space-y-4">
+            <!-- Login Form -->
+            <form id="form-login" onsubmit="handleLogin(event)" class="space-y-4">
                 <div>
-                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Email</label>
-                    <input type="email" id="loginEmail" required placeholder="name@example.com" class="w-full bg-slate-900 border border-slate-800 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 rounded-xl px-4 py-2.5 text-sm text-white outline-none">
+                    <label class="block text-xs uppercase text-gray-400 font-semibold mb-1">Email</label>
+                    <input type="email" id="login-email" required class="w-full bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-indigo-500">
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Password</label>
-                    <input type="password" id="loginPassword" required placeholder="••••••••" class="w-full bg-slate-900 border border-slate-800 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 rounded-xl px-4 py-2.5 text-sm text-white outline-none">
+                    <label class="block text-xs uppercase text-gray-400 font-semibold mb-1">Password</label>
+                    <input type="password" id="login-password" required class="w-full bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-indigo-500">
                 </div>
-                <button type="submit" class="w-full py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-white font-bold text-sm transition active:scale-95 shadow-lg shadow-cyan-500/20">
-                    Log In
-                </button>
+                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 transition py-3 rounded-lg font-semibold text-sm shadow-lg shadow-indigo-600/30">Log In</button>
             </form>
 
-            <!-- SIGNUP FORM -->
-            <form id="signupForm" onsubmit="handleEmailSignup(event)" class="space-y-4 hidden">
+            <!-- Signup Form -->
+            <form id="form-signup" onsubmit="handleSignup(event)" class="space-y-4 hidden">
                 <div>
-                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Username</label>
-                    <input type="text" id="signupUsername" required maxlength="20" placeholder="CyberRunner" class="w-full bg-slate-900 border border-slate-800 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 rounded-xl px-4 py-2.5 text-sm text-white outline-none">
+                    <label class="block text-xs uppercase text-gray-400 font-semibold mb-1">Username</label>
+                    <input type="text" id="signup-username" required class="w-full bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-indigo-500">
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Email</label>
-                    <input type="email" id="signupEmail" required placeholder="name@example.com" class="w-full bg-slate-900 border border-slate-800 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 rounded-xl px-4 py-2.5 text-sm text-white outline-none">
+                    <label class="block text-xs uppercase text-gray-400 font-semibold mb-1">Email</label>
+                    <input type="email" id="signup-email" required class="w-full bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-indigo-500">
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Password</label>
-                    <input type="password" id="signupPassword" required minlength="6" placeholder="At least 6 chars" class="w-full bg-slate-900 border border-slate-800 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 rounded-xl px-4 py-2.5 text-sm text-white outline-none">
+                    <label class="block text-xs uppercase text-gray-400 font-semibold mb-1">Password</label>
+                    <input type="password" id="signup-password" required class="w-full bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-indigo-500">
                 </div>
-
+                <div>
+                    <label class="block text-xs uppercase text-gray-400 font-semibold mb-1">Avatar Image URL</label>
+                    <input type="url" id="signup-avatar" placeholder="https://example.com/avatar.png" class="w-full bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-indigo-500">
+                </div>
                 <!-- Admin Checkbox -->
-                <div class="pt-2 border-t border-slate-800/80">
-                    <label class="flex items-start space-x-2.5 cursor-pointer">
-                        <input type="checkbox" id="adminCheckbox" onchange="toggleAdminField(this.checked)" class="mt-1 rounded bg-slate-900 border-slate-700 text-cyan-500 focus:ring-cyan-500 focus:ring-offset-slate-950">
-                        <div>
-                            <span class="text-xs font-medium text-slate-300">Check if developer/admin</span>
-                            <p class="text-[10px] text-slate-500 font-normal">Will ask for password</p>
-                        </div>
-                    </label>
-
-                    <div id="adminPassContainer" class="hidden mt-3">
-                        <label class="block text-[11px] font-semibold uppercase tracking-wider text-amber-400 mb-1">Developer Secret Key</label>
-                        <input type="password" id="adminSecretKey" placeholder="Enter developer password" class="w-full bg-amber-500/10 border border-amber-500/30 focus:border-amber-400 rounded-xl px-3 py-2 text-xs text-amber-200 outline-none">
+                <div class="flex items-start space-x-3 pt-2">
+                    <input type="checkbox" id="signup-admin-check" onchange="toggleAdminPassword()" class="mt-1 h-4 w-4 rounded border-gray-800 bg-gray-900 text-indigo-600 focus:ring-indigo-500">
+                    <div>
+                        <label for="signup-admin-check" class="text-sm font-medium text-gray-200 cursor-pointer">Check if developer/admin</label>
+                        <p class="text-xs text-gray-500">Will ask for password</p>
                     </div>
                 </div>
-
-                <button type="submit" class="w-full py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-white font-bold text-sm transition active:scale-95 shadow-lg shadow-cyan-500/20">
-                    Create Account
-                </button>
+                <div id="admin-password-container" class="hidden">
+                    <label class="block text-xs uppercase text-gray-400 font-semibold mb-1">Admin Password</label>
+                    <input type="password" id="signup-admin-pass" placeholder="Enter admin password" class="w-full bg-gray-900 border border-red-500/50 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-red-500">
+                </div>
+                <button type="submit" class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 transition py-3 rounded-lg font-semibold text-sm shadow-lg">Create Account</button>
             </form>
 
-            <div class="relative flex items-center justify-center my-2">
-                <div class="border-t border-slate-800 w-full"></div>
-                <span class="bg-slate-950 px-3 text-[11px] text-slate-500 uppercase font-mono tracking-widest absolute">OR</span>
+            <div class="relative my-6">
+                <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-gray-800"></div></div>
+                <div class="relative flex justify-center text-xs uppercase"><span class="bg-gray-900 px-2 text-gray-500">Or</span></div>
             </div>
 
-            <button onclick="handleGoogleSignIn()" type="button" class="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 font-semibold text-xs transition flex items-center justify-center space-x-2">
-                <svg class="w-4 h-4" viewBox="0 0 24 24"><path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.6l3.1-3.1C17.3 1.7 14.8 1 12 1 7.5 1 3.7 3.6 1.9 7.3l3.7 2.9C6.5 7.2 9 5 12 5z"/><path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.8z"/><path fill="#FBBC05" d="M5.6 14.8c-.3-.8-.4-1.7-.4-2.8s.1-2 .4-2.8L1.9 6.3C.7 8.7 0 10.3 0 12s.7 3.3 1.9 5.7l3.7-2.9z"/><path fill="#34A853" d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3 0-5.5-2.2-6.4-5.2L1.9 16C3.7 19.7 7.5 23 12 23z"/></svg>
+            <button onclick="handleGoogleLogin()" class="w-full bg-gray-900 border border-gray-800 hover:bg-gray-800 transition py-3 rounded-lg font-semibold text-sm flex items-center justify-center space-x-2">
                 <span>Continue with Google</span>
             </button>
         </div>
     </div>
 
-    <!-- MAIN APP STRUCTURE -->
-    <div class="flex h-full w-full relative overflow-hidden">
-
-        <!-- SIDEBAR -->
-        <aside id="sidebar" class="w-72 bg-slate-900/90 border-r border-slate-800/80 flex flex-col z-20 absolute md:relative inset-y-0 left-0 transform -translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out">
-            <div class="p-4 border-b border-slate-800/80 flex items-center justify-between">
-                <div class="flex items-center space-x-2.5">
-                    <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500 to-indigo-600 flex items-center justify-center shadow-md shadow-cyan-500/20">
-                        <i data-lucide="zap" class="w-5 h-5 text-white"></i>
-                    </div>
-                    <div>
-                        <h1 class="font-extrabold text-base text-white tracking-wide">Resent<span class="text-cyan-400">Chat</span></h1>
-                        <span id="userRoleBadge" class="text-[10px] text-slate-400 font-mono block -mt-0.5">User Mode</span>
-                    </div>
-                </div>
-                <button onclick="toggleSidebar()" class="md:hidden text-slate-400 hover:text-white p-1">
-                    <i data-lucide="x" class="w-5 h-5"></i>
-                </button>
-            </div>
-
-            <!-- Navigation Sections -->
-            <div class="flex-1 overflow-y-auto px-3 py-4 space-y-5">
-                <!-- Global & Custom Rooms -->
-                <div>
-                    <div class="flex items-center justify-between px-2 mb-2">
-                        <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">CHANNELS</span>
-                        <button onclick="openCreateRoomModal()" class="text-cyan-400 hover:text-cyan-300 text-xs font-semibold flex items-center space-x-1">
-                            <i data-lucide="plus" class="w-3.5 h-3.5"></i>
-                            <span>New</span>
-                        </button>
-                    </div>
-                    <nav class="space-y-1" id="channelList">
-                        <!-- Loaded dynamically -->
-                    </nav>
-                </div>
-
-                <!-- Direct Messages & Friends -->
-                <div>
-                    <div class="flex items-center justify-between px-2 mb-2">
-                        <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">DIRECT MESSAGES</span>
-                        <button onclick="openAddFriendModal()" class="text-cyan-400 hover:text-cyan-300 text-xs font-semibold flex items-center space-x-1">
-                            <i data-lucide="user-plus" class="w-3.5 h-3.5"></i>
-                            <span>Add</span>
-                        </button>
-                    </div>
-                    <nav class="space-y-1" id="dmList">
-                        <!-- Loaded dynamically -->
-                    </nav>
-                </div>
-
-                <!-- Admin Dashboard Button (Admin Only) -->
-                <div id="adminTabSection" class="hidden pt-2 border-t border-slate-800/60">
-                    <button onclick="openAdminPanel()" class="w-full flex items-center space-x-2 px-3 py-2.5 rounded-xl text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30 hover:bg-amber-500/20 transition">
-                        <i data-lucide="shield-alert" class="w-4 h-4 text-amber-400"></i>
-                        <span>Owner / Admin Console</span>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Profile Footer -->
-            <div class="p-3 bg-slate-950/80 border-t border-slate-800/80 flex items-center justify-between">
-                <div onclick="openProfileModal()" class="flex items-center space-x-2.5 cursor-pointer hover:opacity-80 transition overflow-hidden">
-                    <div class="relative">
-                        <img id="userAvatarImg" src="https://api.dicebear.com/7.x/bottts/svg?seed=Guest" class="w-9 h-9 rounded-full object-cover border border-slate-700 bg-slate-800" alt="Avatar">
-                        <span id="statusIndicator" class="w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-slate-950 absolute bottom-0 right-0"></span>
-                    </div>
-                    <div class="truncate">
-                        <div id="userDisplayName" class="text-xs font-semibold text-white truncate">Guest</div>
-                        <div id="userStatusText" class="text-[10px] text-slate-400 truncate">Online</div>
-                    </div>
-                </div>
-                <button onclick="handleSignOut()" title="Sign Out" class="text-slate-400 hover:text-rose-400 p-1.5 rounded-lg hover:bg-slate-800/60 transition">
-                    <i data-lucide="log-out" class="w-4 h-4"></i>
-                </button>
-            </div>
-        </aside>
-
-        <!-- CHAT CONTAINER -->
-        <main class="flex-1 flex flex-col h-full bg-slate-950 relative min-w-0">
-            <!-- Header -->
-            <header class="h-14 border-b border-slate-800/80 px-4 flex items-center justify-between bg-slate-900/40 backdrop-blur-md">
+    <!-- MAIN CHAT APP UI -->
+    <div id="app-screen" class="hidden flex-1 flex h-full">
+        <!-- Sidebar -->
+        <div class="w-72 bg-gray-900 border-r border-gray-800 flex flex-col">
+            <div class="p-4 border-b border-gray-800 flex items-center justify-between">
                 <div class="flex items-center space-x-3">
-                    <button onclick="toggleSidebar()" class="md:hidden text-slate-400 hover:text-white p-1">
-                        <i data-lucide="menu" class="w-5 h-5"></i>
-                    </button>
+                    <img id="current-user-avatar" src="" class="w-10 h-10 rounded-full object-cover border border-indigo-500">
                     <div>
-                        <div class="flex items-center space-x-2">
-                            <span class="text-slate-400 font-semibold text-lg" id="currentHash">#</span>
-                            <h2 class="font-bold text-white text-base tracking-wide" id="currentRoomTitle">general</h2>
-                        </div>
-                        <p class="text-[11px] text-slate-400 -mt-0.5" id="currentRoomDesc">Global discussion</p>
+                        <h3 id="current-user-name" class="font-bold text-sm">Username</h3>
+                        <span id="current-user-role" class="text-xs text-indigo-400">Member</span>
+                    </div>
+                </div>
+                <button onclick="logout()" class="text-gray-400 hover:text-red-400 transition text-sm">Logout</button>
+            </div>
+
+            <!-- Channels & DMs Navigation -->
+            <div class="flex-1 overflow-y-auto p-4 space-y-6">
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs uppercase font-bold text-gray-500 tracking-wider">Channels</span>
+                        <button onclick="createCustomChannel()" class="text-gray-400 hover:text-indigo-400 text-sm">+</button>
+                    </div>
+                    <div id="channels-list" class="space-y-1">
+                        <!-- Loaded dynamically -->
                     </div>
                 </div>
 
-                <div class="flex items-center space-x-2">
-                    <button onclick="toggleAudio()" id="audioBtn" class="text-slate-400 hover:text-cyan-400 p-2 rounded-lg hover:bg-slate-800/60 transition" title="Toggle Notifications">
-                        <i data-lucide="volume-2" id="audioIcon" class="w-4 h-4"></i>
-                    </button>
-                </div>
-            </header>
-
-            <!-- Message Area -->
-            <div id="chatMessages" class="flex-1 overflow-y-auto p-4 space-y-4">
-                <div class="h-full flex items-center justify-center text-slate-500 text-xs">Loading messages...</div>
-            </div>
-
-            <!-- Input Area -->
-            <div class="p-3 md:p-4 border-t border-slate-800/80 bg-slate-900/60 backdrop-blur-md">
-                <form id="chatForm" onsubmit="handleSendMessage(event)" class="flex items-center space-x-2">
-                    <input type="text" id="messageInput" placeholder="Message room..." autocomplete="off" class="flex-1 bg-slate-900/90 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500/80 focus:ring-1 focus:ring-cyan-500/50 transition">
-                    
-                    <button type="button" onclick="promptImageURL()" class="text-slate-400 hover:text-cyan-400 p-2.5 rounded-xl hover:bg-slate-800/60 transition" title="Attach Image URL">
-                        <i data-lucide="image" class="w-4 h-4"></i>
-                    </button>
-
-                    <button type="submit" class="bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-white px-4 py-2.5 rounded-xl font-medium text-sm transition flex items-center justify-center shadow-lg shadow-cyan-500/20 active:scale-95">
-                        <i data-lucide="send" class="w-4 h-4"></i>
-                    </button>
-                </form>
-            </div>
-        </main>
-    </div>
-
-    <!-- PROFILE MODAL -->
-    <div id="profileModal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md hidden flex items-center justify-center p-4">
-        <div class="glass-panel w-full max-w-md rounded-2xl p-6 space-y-5 border border-slate-800">
-            <div class="flex items-center justify-between">
-                <h3 class="text-lg font-bold text-white">Edit Custom Profile</h3>
-                <button onclick="closeModal('profileModal')" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
-            </div>
-            <form onsubmit="handleSaveProfile(event)" class="space-y-4">
                 <div>
-                    <label class="block text-xs font-semibold text-slate-400 mb-1">Display Username</label>
-                    <input type="text" id="profileNameInput" required maxlength="25" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-cyan-500">
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-slate-400 mb-1">Avatar Image URL (Direct Link)</label>
-                    <input type="url" id="profileAvatarInput" placeholder="https://..." class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-cyan-500">
-                    <p class="text-[10px] text-slate-500 mt-1">Paste a web image URL to update your avatar globally across all users.</p>
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-slate-400 mb-1">Status Message</label>
-                    <input type="text" id="profileStatusInput" placeholder="Chilling on ResentChat" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-cyan-500">
-                </div>
-                <button type="submit" class="w-full py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs transition">Save Profile Changes</button>
-            </form>
-        </div>
-    </div>
-
-    <!-- CREATE ROOM MODAL -->
-    <div id="createRoomModal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md hidden flex items-center justify-center p-4">
-        <div class="glass-panel w-full max-w-md rounded-2xl p-6 space-y-5 border border-slate-800">
-            <div class="flex items-center justify-between">
-                <h3 class="text-lg font-bold text-white">Create Custom Channel</h3>
-                <button onclick="closeModal('createRoomModal')" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
-            </div>
-            <form onsubmit="handleCreateRoom(event)" class="space-y-4">
-                <div>
-                    <label class="block text-xs font-semibold text-slate-400 mb-1">Room Name</label>
-                    <input type="text" id="roomNameInput" required maxlength="20" placeholder="gaming-lounge" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-cyan-500">
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-slate-400 mb-1">Description</label>
-                    <input type="text" id="roomDescInput" placeholder="Place to talk about games" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-cyan-500">
-                </div>
-                <button type="submit" class="w-full py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs transition">Create Room</button>
-            </form>
-        </div>
-    </div>
-
-    <!-- ADD FRIEND MODAL -->
-    <div id="addFriendModal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md hidden flex items-center justify-center p-4">
-        <div class="glass-panel w-full max-w-md rounded-2xl p-6 space-y-5 border border-slate-800">
-            <div class="flex items-center justify-between">
-                <h3 class="text-lg font-bold text-white">Add Friend / Start DM</h3>
-                <button onclick="closeModal('addFriendModal')" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
-            </div>
-            <form onsubmit="handleAddFriend(event)" class="space-y-4">
-                <div>
-                    <label class="block text-xs font-semibold text-slate-400 mb-1">Friend's Exact Username or Email</label>
-                    <input type="text" id="friendIdentifierInput" required placeholder="User or email" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-cyan-500">
-                </div>
-                <button type="submit" class="w-full py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs transition">Send Friend Request / Open DM</button>
-            </form>
-        </div>
-    </div>
-
-    <!-- OWNER / ADMIN PANEL MODAL -->
-    <div id="adminModal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md hidden flex items-center justify-center p-4">
-        <div class="glass-panel w-full max-w-2xl rounded-2xl p-6 space-y-6 border border-amber-500/30">
-            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-                <div class="flex items-center space-x-2">
-                    <i data-lucide="shield-alert" class="w-5 h-5 text-amber-400"></i>
-                    <h3 class="text-lg font-bold text-amber-300">ResentChat Owner / Developer Control Console</h3>
-                </div>
-                <button onclick="closeModal('adminModal')" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
-            </div>
-
-            <!-- Server Announcement Broadcast -->
-            <div class="space-y-2">
-                <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider">Broadcast System Announcement</label>
-                <div class="flex space-x-2">
-                    <input type="text" id="announcementInput" placeholder="Server maintenance scheduled for tonight..." class="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-amber-400">
-                    <button onclick="handleBroadcastAnnouncement()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 px-4 py-2 rounded-xl text-xs font-bold transition">Broadcast</button>
-                </div>
-            </div>
-
-            <!-- User Moderation Table -->
-            <div class="space-y-2">
-                <span class="block text-xs font-bold text-slate-300 uppercase tracking-wider">User Moderation & Bans</span>
-                <div class="max-h-60 overflow-y-auto border border-slate-800 rounded-xl bg-slate-900/50 p-2">
-                    <div id="adminUserList" class="space-y-2 text-xs">
+                    <span class="text-xs uppercase font-bold text-gray-500 tracking-wider block mb-2">Friends & DMs</span>
+                    <div class="flex space-x-2 mb-3">
+                        <input type="text" id="add-friend-input" placeholder="Username to add" class="flex-1 bg-gray-950 border border-gray-800 rounded px-2 py-1 text-xs focus:outline-none focus:border-indigo-500">
+                        <button onclick="sendFriendRequest()" class="bg-indigo-600 hover:bg-indigo-500 px-3 py-1 rounded text-xs font-semibold">Add</button>
+                    </div>
+                    <div id="friends-list" class="space-y-1">
                         <!-- Loaded dynamically -->
                     </div>
                 </div>
             </div>
+            
+            <!-- Admin Panel Trigger (Only if Admin) -->
+            <div id="admin-panel-btn-container" class="p-4 border-t border-gray-800 hidden">
+                <button onclick="openAdminPanel()" class="w-full bg-red-600/20 border border-red-500/50 hover:bg-red-600/30 text-red-400 py-2 rounded-lg text-xs font-bold transition">Admin Control Panel</button>
+            </div>
+        </div>
+
+        <!-- Chat Area -->
+        <div class="flex-1 flex flex-col bg-gray-950">
+            <div id="chat-header" class="p-4 border-b border-gray-800 flex items-center justify-between bg-gray-900/50">
+                <h2 id="active-chat-title" class="font-bold text-lg">#general</h2>
+            </div>
+            
+            <div id="messages-container" class="flex-1 p-6 overflow-y-auto space-y-4">
+                <!-- Messages load here -->
+            </div>
+
+            <form onsubmit="sendMessage(event)" class="p-4 border-t border-gray-800 bg-gray-900/50 flex space-x-2">
+                <input type="text" id="message-input" placeholder="Type your message..." class="flex-1 bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-indigo-500">
+                <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 px-6 py-3 rounded-lg font-semibold text-sm transition">Send</button>
+            </form>
         </div>
     </div>
 
-    <!-- FIREBASE COMPAT SDKs -->
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
-
+    <!-- SCRIPT LOGIC -->
     <script>
-        // =========================================================================
-        // FIREBASE CONFIGURATION (Paste your credentials below)
-        // =========================================================================
-        const firebaseConfig = {
-            apiKey: "YOUR_API_KEY_HERE",
-            authDomain: "resentchat.firebaseapp.com",
-            databaseURL: "https://resentchat-default-rtdb.firebaseio.com",
-            projectId: "resentchat",
-            storageBucket: "resentchat.appspot.com",
-            messagingSenderId: "1234567890",
-            appId: "1:1234567890:web:abcdef"
-        };
-
-        const ADMIN_PASS_KEY = "admin333";
-
-        let isConfigured = firebaseConfig.apiKey !== "YOUR_API_KEY_HERE" && !firebaseConfig.databaseURL.includes("YOUR_PROJECT_ID");
-        
-        if (!isConfigured) {
-            document.getElementById('configWarning').classList.remove('hidden');
-        } else {
-            firebase.initializeApp(firebaseConfig);
-        }
-
-        const auth = isConfigured ? firebase.auth() : null;
-        const db = isConfigured ? firebase.database() : null;
-
-        // State variables
         let currentUser = null;
-        let currentUserProfile = null;
-        let currentRoomId = 'general';
-        let currentRoomType = 'channel'; // 'channel' or 'dm'
-        let audioEnabled = true;
+        let userData = null;
+        let activeChat = { type: 'channel', id: 'general' };
 
-        // Auth Tab Switcher
-        window.switchAuthTab = (tab) => {
-            const loginForm = document.getElementById('loginForm');
-            const signupForm = document.getElementById('signupForm');
-            const tabLogin = document.getElementById('tabLogin');
-            const tabSignup = document.getElementById('tabSignup');
-
+        function switchAuthTab(tab) {
             if (tab === 'login') {
-                loginForm.classList.remove('hidden');
-                signupForm.classList.add('hidden');
-                tabLogin.className = "flex-1 py-2 text-cyan-400 border-b-2 border-cyan-400 transition";
-                tabSignup.className = "flex-1 py-2 text-slate-400 hover:text-slate-200 border-b-2 border-transparent transition";
+                document.getElementById('form-login').classList.remove('hidden');
+                document.getElementById('form-signup').classList.add('hidden');
+                document.getElementById('tab-login').className = "flex-1 pb-3 font-semibold text-indigo-400 border-b-2 border-indigo-500";
+                document.getElementById('tab-signup').className = "flex-1 pb-3 font-semibold text-gray-400";
             } else {
-                loginForm.classList.add('hidden');
-                signupForm.classList.remove('hidden');
-                tabSignup.className = "flex-1 py-2 text-cyan-400 border-b-2 border-cyan-400 transition";
-                tabLogin.className = "flex-1 py-2 text-slate-400 hover:text-slate-200 border-b-2 border-transparent transition";
+                document.getElementById('form-login').classList.add('hidden');
+                document.getElementById('form-signup').classList.remove('hidden');
+                document.getElementById('tab-signup').className = "flex-1 pb-3 font-semibold text-indigo-400 border-b-2 border-indigo-500";
+                document.getElementById('tab-login').className = "flex-1 pb-3 font-semibold text-gray-400";
             }
-        };
+        }
 
-        window.toggleAdminField = (isChecked) => {
-            document.getElementById('adminPassContainer').classList.toggle('hidden', !isChecked);
-        };
+        function toggleAdminPassword() {
+            const checked = document.getElementById('signup-admin-check').checked;
+            const container = document.getElementById('admin-password-container');
+            if (checked) container.classList.remove('hidden');
+            else container.classList.add('hidden');
+        }
 
-        // --- AUTH HANDLERS ---
-        window.handleEmailSignup = async (e) => {
-            e.preventDefault();
-            if (!auth) return alert("Please configure Firebase first!");
-
-            const email = document.getElementById('signupEmail').value.trim();
-            const password = document.getElementById('signupPassword').value;
-            const username = document.getElementById('signupUsername').value.trim();
-            const isAdminChecked = document.getElementById('adminCheckbox').checked;
-            const adminKey = document.getElementById('adminSecretKey').value;
-
-            let isAdmin = false;
-            if (isAdminChecked) {
-                if (adminKey !== ADMIN_PASS_KEY) {
-                    return alert("Incorrect developer/admin secret key!");
-                }
-                isAdmin = true;
-            }
-
-            try {
-                const cred = await auth.createUserWithEmailAndPassword(email, password);
-                const uid = cred.user.uid;
-                
-                // Create User profile in DB
-                await db.ref(`users/${uid}`).set({
-                    uid,
-                    email,
-                    username,
-                    avatarUrl: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(username)}`,
-                    status: 'Online',
-                    isAdmin: isAdmin,
-                    isBanned: false
-                });
-            } catch (err) {
-                alert(err.message);
-            }
-        };
-
-        window.handleEmailLogin = async (e) => {
-            e.preventDefault();
-            if (!auth) return alert("Please configure Firebase first!");
-
-            const email = document.getElementById('loginEmail').value.trim();
-            const password = document.getElementById('loginPassword').value;
-
-            try {
-                await auth.signInWithEmailAndPassword(email, password);
-            } catch (err) {
-                alert(err.message);
-            }
-        };
-
-        window.handleGoogleSignIn = async () => {
-            if (!auth) return alert("Please configure Firebase first!");
-            const provider = new firebase.auth.GoogleAuthProvider();
-            try {
-                const res = await auth.signInWithPopup(provider);
-                const user = res.user;
-                
-                // Check if user exists in DB
-                const snap = await db.ref(`users/${user.uid}`).once('value');
-                if (!snap.exists()) {
-                    await db.ref(`users/${user.uid}`).set({
-                        uid: user.uid,
-                        email: user.email,
-                        username: user.displayName || 'Google User',
-                        avatarUrl: user.photoURL || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(user.uid)}`,
-                        status: 'Online',
-                        isAdmin: false,
-                        isBanned: false
-                    });
-                }
-            } catch (err) {
-                alert(err.message);
-            }
-        };
-
-        window.handleSignOut = () => {
-            if (auth) auth.signOut();
-        };
-
-        // Listen for Auth Changes
-        if (auth) {
-            auth.onAuthStateChanged(async (user) => {
-                if (user) {
-                    currentUser = user;
-                    const snap = await db.ref(`users/${user.uid}`).once('value');
-                    currentUserProfile = snap.val();
-
-                    if (currentUserProfile && currentUserProfile.isBanned) {
-                        alert("Your account has been banned by an admin.");
-                        auth.signOut();
-                        return;
+        // Firebase Auth State Listener
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                currentUser = user;
+                db.ref('users/' + user.uid).once('value').then(snapshot => {
+                    userData = snapshot.val();
+                    if (!userData) {
+                        // Create user profile if missing
+                        userData = {
+                            username: user.displayName || user.email.split('@')[0],
+                            avatar: user.photoURL || "https://api.dicebear.com/7.x/identicon/svg?seed=" + user.uid,
+                            role: "Member"
+                        };
+                        db.ref('users/' + user.uid).set(userData);
                     }
-
-                    document.getElementById('authModal').classList.add('hidden');
-                    updateUserUI();
-                    loadChannels();
-                    loadDMs();
-                    switchRoom('general', 'channel', 'general', 'Global discussion');
-                } else {
-                    currentUser = null;
-                    currentUserProfile = null;
-                    document.getElementById('authModal').classList.remove('hidden');
-                }
-            });
-        }
-
-        function updateUserUI() {
-            if (!currentUserProfile) return;
-            document.getElementById('userDisplayName').innerText = currentUserProfile.username;
-            document.getElementById('userAvatarImg').src = currentUserProfile.avatarUrl;
-            document.getElementById('userStatusText').innerText = currentUserProfile.status || 'Online';
-            
-            if (currentUserProfile.isAdmin) {
-                document.getElementById('userRoleBadge').innerText = "Owner / Admin";
-                document.getElementById('userRoleBadge').className = "text-[10px] text-amber-400 font-bold font-mono block -mt-0.5";
-                document.getElementById('adminTabSection').classList.remove('hidden');
+                    initAppUI();
+                });
             } else {
-                document.getElementById('userRoleBadge').innerText = "User Mode";
-                document.getElementById('adminTabSection').classList.add('hidden');
+                document.getElementById('auth-screen').classList.remove('hidden');
+                document.getElementById('app-screen').classList.add('hidden');
             }
+        });
+
+        function handleLogin(e) {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const pass = document.getElementById('login-password').value;
+            auth.signInWithEmailAndPassword(email, pass).catch(err => alert(err.message));
         }
 
-        // --- ROOMS & CHANNELS ---
-        function loadChannels() {
-            if (!db) return;
-            db.ref('rooms').on('value', (snap) => {
-                const rooms = snap.val() || {};
-                const list = document.getElementById('channelList');
+        function handleSignup(e) {
+            e.preventDefault();
+            const username = document.getElementById('signup-username').value;
+            const email = document.getElementById('signup-email').value;
+            const pass = document.getElementById('signup-password').value;
+            let avatar = document.getElementById('signup-avatar').value || "https://api.dicebear.com/7.x/identicon/svg?seed=" + username;
+            let role = "Member";
 
-                // Default Channels
-                let defaultHtml = `
-                    <button onclick="switchRoom('general', 'channel', 'general', 'Global discussion')" class="w-full flex items-center space-x-2 px-2.5 py-2 rounded-xl text-xs font-medium transition ${currentRoomId === 'general' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'}">
-                        <span class="text-slate-500">#</span>
-                        <span>general</span>
-                    </button>
-                    <button onclick="switchRoom('tech', 'channel', 'tech-talk', 'Tech and code discussions')" class="w-full flex items-center space-x-2 px-2.5 py-2 rounded-xl text-xs font-medium transition ${currentRoomId === 'tech' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'}">
-                        <span class="text-slate-500">#</span>
-                        <span>tech-talk</span>
-                    </button>
-                `;
-
-                const customHtml = Object.keys(rooms).map(key => {
-                    const r = rooms[key];
-                    return `
-                        <button onclick="switchRoom('${key}', 'channel', '${r.name}', '${r.desc}')" class="w-full flex items-center space-x-2 px-2.5 py-2 rounded-xl text-xs font-medium transition ${currentRoomId === key ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'}">
-                            <span class="text-slate-500">#</span>
-                            <span class="truncate">${r.name}</span>
-                        </button>
-                    `;
-                }).join('');
-
-                list.innerHTML = defaultHtml + customHtml;
-            });
-        }
-
-        function loadDMs() {
-            if (!db || !currentUser) return;
-            db.ref(`users/${currentUser.uid}/friends`).on('value', (snap) => {
-                const friends = snap.val() || {};
-                const list = document.getElementById('dmList');
-                
-                list.innerHTML = Object.keys(friends).map(fUid => {
-                    const f = friends[fUid];
-                    return `
-                        <button onclick="switchRoom('${fUid}', 'dm', '${f.username}', 'Direct message')" class="w-full flex items-center space-x-2 px-2.5 py-2 rounded-xl text-xs font-medium transition ${currentRoomId === fUid ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'}">
-                            <img src="${f.avatarUrl}" class="w-4 h-4 rounded-full" alt="avatar">
-                            <span class="truncate">${f.username}</span>
-                        </button>
-                    `;
-                }).join('');
-            });
-        }
-
-        window.switchRoom = (id, type, title, desc) => {
-            currentRoomId = id;
-            currentRoomType = type;
-            document.getElementById('currentHash').innerText = type === 'channel' ? '#' : '@';
-            document.getElementById('currentRoomTitle').innerText = title;
-            document.getElementById('currentRoomDesc').innerText = desc;
-            loadMessages();
-
-            if (window.innerWidth < 768) toggleSidebar();
-        };
-
-        function loadMessages() {
-            if (!db) return;
-            const path = currentRoomType === 'channel' ? `messages/channels/${currentRoomId}` : `messages/dms/${getDmRoomKey(currentUser.uid, currentRoomId)}`;
-
-            db.ref(path).limitToLast(50).on('value', (snap) => {
-                const msgs = snap.val() || {};
-                const list = document.getElementById('chatMessages');
-                const array = Object.keys(msgs).map(k => ({ id: k, ...msgs[k] }));
-
-                if (array.length === 0) {
-                    list.innerHTML = `<div class="h-full flex items-center justify-center text-slate-500 text-xs">No messages here yet. Break the ice!</div>`;
+            const isAdminChecked = document.getElementById('signup-admin-check').checked;
+            if (isAdminChecked) {
+                const adminPass = document.getElementById('signup-admin-pass').value;
+                if (adminPass === "admin333") {
+                    role = "Admin";
+                } else {
+                    alert("Incorrect Admin Password!");
                     return;
                 }
+            }
 
-                list.innerHTML = array.map(m => {
-                    const isOwnerMsg = m.isAdmin;
-                    let text = escapeHTML(m.text);
-                    text = text.replace(/\[img\](.*?)\[\/img\]/g, '<img src="$1" class="max-w-xs max-h-60 rounded-xl my-2 border border-slate-700 shadow-md">');
+            auth.createUserWithEmailAndPassword(email, pass).then(cred => {
+                const newUserData = { username, avatar, role };
+                db.ref('users/' + cred.user.uid).set(newUserData);
+            }).catch(err => alert(err.message));
+        }
 
-                    return `
-                        <div class="flex items-start space-x-3 group relative">
-                            <img src="${m.avatarUrl}" class="w-8 h-8 rounded-full object-cover border border-slate-700 bg-slate-800 flex-shrink-0 mt-0.5">
-                            <div class="flex-1 min-w-0">
-                                <div class="flex items-center space-x-2">
-                                    <span class="text-xs font-bold ${isOwnerMsg ? 'text-amber-400 font-mono' : 'text-slate-200'}">${escapeHTML(m.username)}</span>
-                                    ${isOwnerMsg ? '<span class="text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1 rounded">ADMIN</span>' : ''}
-                                    <span class="text-[10px] text-slate-500 font-mono">${new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                </div>
-                                <div class="text-sm text-slate-300 mt-0.5 break-words select-text">${text}</div>
-                            </div>
-                            ${currentUserProfile?.isAdmin ? `<button onclick="deleteMessage('${m.id}')" class="opacity-0 group-hover:opacity-100 text-rose-400 hover:text-rose-300 p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}
-                        </div>
-                    `;
-                }).join('');
+        function handleGoogleLogin() {
+            const provider = new firebase.auth.GoogleAuthProvider();
+            auth.signInWithPopup(provider).then(cred => {
+                db.ref('users/' + cred.user.uid).once('value').then(snapshot => {
+                    if (!snapshot.exists()) {
+                        db.ref('users/' + cred.user.uid).set({
+                            username: cred.user.displayName,
+                            avatar: cred.user.photoURL,
+                            role: "Member"
+                        });
+                    }
+                });
+            }).catch(err => alert(err.message));
+        }
 
-                list.scrollTop = list.scrollHeight;
-                lucide.createIcons();
+        function logout() { auth.signOut(); }
+
+        function initAppUI() {
+            document.getElementById('auth-screen').classList.add('hidden');
+            document.getElementById('app-screen').classList.remove('hidden');
+            document.getElementById('current-user-name').innerText = userData.username;
+            document.getElementById('current-user-role').innerText = userData.role;
+            document.getElementById('current-user-avatar').src = userData.avatar;
+
+            if (userData.role === "Admin") {
+                document.getElementById('admin-panel-btn-container').classList.remove('hidden');
+            }
+
+            loadChannels();
+            loadFriends();
+            loadMessages();
+        }
+
+        function loadChannels() {
+            const list = document.getElementById('channels-list');
+            db.ref('channels').on('value', snapshot => {
+                list.innerHTML = '';
+                const channels = snapshot.val() || { general: { name: 'general' } };
+                Object.keys(channels).forEach(id => {
+                    list.innerHTML += `<button onclick="switchChat('channel', '${id}')" class="w-full text-left px-3 py-2 rounded text-sm hover:bg-gray-800 transition text-gray-300"># ${channels[id].name}</button>`;
+                });
             });
         }
 
-        window.handleSendMessage = async (e) => {
+        function createCustomChannel() {
+            const name = prompt("Enter new channel name:");
+            if (name) {
+                const id = name.toLowerCase().replace(/\s+/g, '-');
+                db.ref('channels/' + id).set({ name });
+            }
+        }
+
+        function sendFriendRequest() {
+            const targetName = document.getElementById('add-friend-input').value;
+            // Simple direct mapping demonstration
+            alert("Friend request sent to " + targetName);
+            document.getElementById('add-friend-input').value = '';
+        }
+
+        function loadFriends() {
+            document.getElementById('friends-list').innerHTML = `<div class="text-xs text-gray-500 px-3 py-1">No friends added yet</div>`;
+        }
+
+        function switchChat(type, id) {
+            activeChat = { type, id };
+            document.getElementById('active-chat-title').innerText = (type === 'channel' ? '# ' : '@ ') + id;
+            loadMessages();
+        }
+
+        function sendMessage(e) {
             e.preventDefault();
-            const input = document.getElementById('messageInput');
+            const input = document.getElementById('message-input');
             const text = input.value.trim();
-            if (!text || !currentUserProfile) return;
+            if (!text) return;
 
-            const path = currentRoomType === 'channel' ? `messages/channels/${currentRoomId}` : `messages/dms/${getDmRoomKey(currentUser.uid, currentRoomId)}`;
-
-            await db.ref(path).push({
-                uid: currentUser.uid,
-                username: currentUserProfile.username,
-                avatarUrl: currentUserProfile.avatarUrl,
-                isAdmin: currentUserProfile.isAdmin || false,
+            const path = activeChat.type === 'channel' ? `messages/channels/${activeChat.id}` : `messages/dms/${activeChat.id}`;
+            db.ref(path).push({
+                senderId: currentUser.uid,
+                senderName: userData.username,
+                senderAvatar: userData.avatar,
                 text: text,
                 timestamp: Date.now()
             });
-
             input.value = '';
-            playNotificationSound();
-        };
-
-        function getDmRoomKey(uid1, uid2) {
-            return [uid1, uid2].sort().join('_');
         }
 
-        // --- PROFILE MODAL & EDIT ---
-        window.openProfileModal = () => {
-            if (!currentUserProfile) return;
-            document.getElementById('profileNameInput').value = currentUserProfile.username;
-            document.getElementById('profileAvatarInput').value = currentUserProfile.avatarUrl;
-            document.getElementById('profileStatusInput').value = currentUserProfile.status || '';
-            document.getElementById('profileModal').classList.remove('hidden');
-        };
-
-        window.handleSaveProfile = async (e) => {
-            e.preventDefault();
-            const newName = document.getElementById('profileNameInput').value.trim();
-            const newAvatar = document.getElementById('profileAvatarInput').value.trim() || currentUserProfile.avatarUrl;
-            const newStatus = document.getElementById('profileStatusInput').value.trim();
-
-            await db.ref(`users/${currentUser.uid}`).update({
-                username: newName,
-                avatarUrl: newAvatar,
-                status: newStatus
-            });
-
-            currentUserProfile.username = newName;
-            currentUserProfile.avatarUrl = newAvatar;
-            currentUserProfile.status = newStatus;
-
-            updateUserUI();
-            closeModal('profileModal');
-        };
-
-        // --- CUSTOM ROOM CREATION ---
-        window.openCreateRoomModal = () => document.getElementById('createRoomModal').classList.remove('hidden');
-        window.handleCreateRoom = async (e) => {
-            e.preventDefault();
-            const name = document.getElementById('roomNameInput').value.trim();
-            const desc = document.getElementById('roomDescInput').value.trim();
-
-            const newRef = db.ref('rooms').push();
-            await newRef.set({
-                name: name,
-                desc: desc,
-                createdBy: currentUser.uid
-            });
-
-            closeModal('createRoomModal');
-        };
-
-        // --- ADD FRIEND / START DM ---
-        window.openAddFriendModal = () => document.getElementById('addFriendModal').classList.remove('hidden');
-        window.handleAddFriend = async (e) => {
-            e.preventDefault();
-            const input = document.getElementById('friendIdentifierInput').value.trim();
-
-            // Search users table
-            const snap = await db.ref('users').once('value');
-            const users = snap.val() || {};
+        function loadMessages() {
+            const container = document.getElementById('messages-container');
+            const path = activeChat.type === 'channel' ? `messages/channels/${activeChat.id}` : `messages/dms/${activeChat.id}`;
             
-            let foundUser = null;
-            Object.keys(users).forEach(uid => {
-                if (users[uid].username === input || users[uid].email === input) {
-                    foundUser = users[uid];
-                }
-            });
-
-            if (!foundUser) return alert("User not found!");
-
-            // Add to friends list
-            await db.ref(`users/${currentUser.uid}/friends/${foundUser.uid}`).set({
-                uid: foundUser.uid,
-                username: foundUser.username,
-                avatarUrl: foundUser.avatarUrl
-            });
-
-            closeModal('addFriendModal');
-            switchRoom(foundUser.uid, 'dm', foundUser.username, 'Direct Message');
-        };
-
-        // --- ADMIN PANEL ---
-        window.openAdminPanel = async () => {
-            if (!currentUserProfile?.isAdmin) return alert("Unauthorized access!");
-            document.getElementById('adminModal').classList.remove('hidden');
-
-            // Load users list for moderation
-            const snap = await db.ref('users').once('value');
-            const users = snap.val() || {};
-
-            const container = document.getElementById('adminUserList');
-            container.innerHTML = Object.keys(users).map(uid => {
-                const u = users[uid];
-                return `
-                    <div class="flex items-center justify-between p-2 rounded-lg bg-slate-950 border border-slate-800">
-                        <div class="flex items-center space-x-2">
-                            <img src="${u.avatarUrl}" class="w-6 h-6 rounded-full">
-                            <span class="font-bold text-white">${escapeHTML(u.username)}</span>
-                            <span class="text-slate-500">(${u.email})</span>
+            db.ref(path).on('value', snapshot => {
+                container.innerHTML = '';
+                const msgs = snapshot.val() || {};
+                Object.values(msgs).forEach(msg => {
+                    container.innerHTML += `
+                        <div class="flex items-start space-x-3">
+                            <img src="${msg.senderAvatar}" class="w-9 h-9 rounded-full object-cover">
+                            <div>
+                                <div class="flex items-center space-x-2">
+                                    <span class="font-bold text-sm text-indigo-300">${msg.senderName}</span>
+                                    <span class="text-xs text-gray-500">${new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                                </div>
+                                <p class="text-sm text-gray-200 mt-0.5">${msg.text}</p>
+                            </div>
                         </div>
-                        <button onclick="toggleBanUser('${u.uid}', ${!u.isBanned})" class="px-2 py-1 rounded text-[10px] font-bold ${u.isBanned ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}">
-                            ${u.isBanned ? 'UNBAN' : 'BAN'}
-                        </button>
-                    </div>
-                `;
-            }).join('');
-        };
-
-        window.toggleBanUser = async (uid, shouldBan) => {
-            await db.ref(`users/${uid}`).update({ isBanned: shouldBan });
-            openAdminPanel(); // Refresh list
-        };
-
-        window.handleBroadcastAnnouncement = async () => {
-            const msg = document.getElementById('announcementInput').value.trim();
-            if (!msg) return;
-
-            await db.ref('messages/channels/general').push({
-                uid: currentUser.uid,
-                username: "SYSTEM ANNOUNCEMENT",
-                avatarUrl: "https://api.dicebear.com/7.x/bottts/svg?seed=System",
-                isAdmin: true,
-                text: `📢 ${msg}`,
-                timestamp: Date.now()
+                    `;
+                });
+                container.scrollTop = container.scrollHeight;
             });
-
-            document.getElementById('announcementInput').value = '';
-            alert("Broadcast sent to #general!");
-        };
-
-        window.deleteMessage = async (msgId) => {
-            if (!currentUserProfile?.isAdmin) return;
-            const path = currentRoomType === 'channel' ? `messages/channels/${currentRoomId}/${msgId}` : `messages/dms/${getDmRoomKey(currentUser.uid, currentRoomId)}/${msgId}`;
-            await db.ref(path).remove();
-        };
-
-        // --- UTILS ---
-        window.closeModal = (id) => document.getElementById(id).classList.add('hidden');
-        window.toggleSidebar = () => document.getElementById('sidebar').classList.toggle('-translate-x-full');
-        window.promptImageURL = () => {
-            const url = prompt("Enter full Image URL:");
-            if (url) document.getElementById('messageInput').value += ` [img]${url}[/img] `;
-        };
-
-        function playNotificationSound() {
-            if (!audioEnabled) return;
-            try {
-                const ctx = new (window.AudioContext || window.webkitAudioContext)();
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(523.25, ctx.currentTime);
-                osc.frequency.exponentialRampToValueAtTime(659.25, ctx.currentTime + 0.08);
-                gain.gain.setValueAtTime(0.04, ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
-                osc.connect(gain);
-                gain.connect(ctx.destination);
-                osc.start();
-                osc.stop(ctx.currentTime + 0.12);
-            } catch(e) {}
         }
 
-        window.toggleAudio = () => {
-            audioEnabled = !audioEnabled;
-            const icon = document.getElementById('audioIcon');
-            icon.setAttribute('data-lucide', audioEnabled ? 'volume-2' : 'volume-x');
-            lucide.createIcons();
-        };
-
-        function escapeHTML(str) {
-            return str.replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag));
+        function openAdminPanel() {
+            alert("Welcome Admin! You have full control over ResentChat.");
         }
-
-        lucide.createIcons();
     </script>
 </body>
 </html>
